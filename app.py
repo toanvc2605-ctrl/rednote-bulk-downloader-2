@@ -32,7 +32,7 @@ def valid_profile(url: str):
 
 async def collect_profile(url, max_posts=100, cookie=None):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, executable_path=os.getenv('CHROMIUM_PATH', '/usr/bin/chromium'), args=['--no-sandbox', '--disable-dev-shm-usage'])
         context = await browser.new_context()
         if cookie:
             # Cookie string is supplied by the user; it is not logged or persisted.
@@ -81,12 +81,31 @@ async def collect_profile(url, max_posts=100, cookie=None):
                 stable = 0
             last = count
             if stable >= 5: break
+        # Fallback: collect public post links rendered in the page DOM.
+        try:
+            hrefs = await page.locator('a[href]').evaluate_all("els => els.map(e => e.href).filter(Boolean)")
+            for href in hrefs:
+                if '/explore/' in href or '/discovery/item/' in href:
+                    m = re.search(r'/(?:explore|discovery/item)/([A-Za-z0-9_-]+)', href)
+                    if not m: continue
+                    nid = m.group(1)
+                    if nid not in notes:
+                        notes[nid] = {
+                            'id': nid,
+                            'title': '',
+                            'type': '',
+                            'url': f'https://www.xiaohongshu.com/explore/{nid}',
+                            'cover': None,
+                        }
+                    if len(notes) >= max_posts: break
+        except Exception:
+            pass
         await browser.close()
         return list(notes.values())[:max_posts]
 
 async def resolve_video(note_url, cookie=None):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, executable_path=os.getenv('CHROMIUM_PATH', '/usr/bin/chromium'), args=['--no-sandbox', '--disable-dev-shm-usage'])
         context = await browser.new_context()
         if cookie:
             cookies=[]
