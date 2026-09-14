@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: rednote-bulk-downloader
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
